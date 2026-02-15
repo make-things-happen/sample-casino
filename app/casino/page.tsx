@@ -1,17 +1,17 @@
 "use client";
 
-import { formatCurrency } from "~/lib/format";
-import { registrationSchema, ftdSchema, revenueSchema } from "~/lib/validation";
 import {
+  Circle,
   CrownIcon,
   FrownIcon,
   Hand,
-  Circle,
-  Scissors,
   Loader2,
+  Scissors,
 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
+import { formatCurrency } from "~/lib/format";
+import { ftdSchema, registrationSchema, revenueSchema } from "~/lib/validation";
 
 export default function CasinoPageWrapper() {
   return (
@@ -42,7 +42,11 @@ function CasinoPage() {
 
   const log = (msg: string) => setEventLog((prev) => [...prev, msg]);
 
-  async function trackConversion(endpoint: string, data: Record<string, unknown>): Promise<boolean> {
+  type TrackEndpoint = "registration" | "ftd" | "revenue" | "reversal";
+  async function trackConversion(
+    endpoint: TrackEndpoint,
+    data: Record<string, unknown>,
+  ): Promise<boolean> {
     const res = await fetch(`/api/track/${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -67,7 +71,9 @@ function CasinoPage() {
     setLoading(false);
 
     if (!ok) {
-      log(`Failed to register player ${name}. Get a new click ID and try again.`);
+      log(
+        `Failed to register player ${name}. Get a new click ID and try again.`,
+      );
       return;
     }
 
@@ -152,7 +158,9 @@ function CasinoPage() {
     } else {
       result = "lose";
     }
-    log(`Player chose ${choice}, Casino chose ${casinoChoice}. Result: ${result.toUpperCase()}.`);
+    log(
+      `Player chose ${choice}, Casino chose ${casinoChoice}. Result: ${result.toUpperCase()}.`,
+    );
 
     if (result !== "draw") {
       await rpsResult(result, amount);
@@ -162,8 +170,8 @@ function CasinoPage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
       <div>
-        <h1 className="text-2xl font-bold">Rock Paper Scissors</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="font-bold text-2xl">Rock Paper Scissors</h1>
+        <p className="mt-1 text-muted-foreground text-sm">
           Click ID: {clickId || "(not found — use a tracking link)"}
         </p>
       </div>
@@ -172,7 +180,7 @@ function CasinoPage() {
         <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6">
           <h2 className="font-semibold">Register to Play</h2>
           <label className="flex flex-col gap-1">
-            <span className="text-sm text-muted-foreground">Player Name</span>
+            <span className="text-muted-foreground text-sm">Player Name</span>
             <input
               type="text"
               value={playerNameInput}
@@ -185,7 +193,7 @@ function CasinoPage() {
             type="button"
             onClick={() => register(playerNameInput)}
             disabled={loading || !playerNameInput.trim()}
-            className="self-start rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+            className="self-start rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground text-sm transition hover:opacity-90 disabled:opacity-50"
           >
             {loading ? "Registering..." : "Register"}
           </button>
@@ -201,7 +209,7 @@ function CasinoPage() {
               type="button"
               onClick={() => onDeposit(10_000)}
               disabled={loading}
-              className="rounded-md bg-success px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+              className="rounded-md bg-success px-4 py-2 font-medium text-sm text-white transition hover:opacity-90 disabled:opacity-50"
             >
               Deposit ₱10,000
             </button>
@@ -210,17 +218,24 @@ function CasinoPage() {
           <div>
             <h2 className="mb-3 font-semibold">Play a Round</h2>
             <div className="flex flex-wrap gap-3">
-              {([
-                { choice: "rock", label: "Rock", bet: 1_000, Icon: Circle },
-                { choice: "paper", label: "Paper", bet: 2_000, Icon: Hand },
-                { choice: "scissors", label: "Scissors", bet: 3_000, Icon: Scissors },
-              ] as const).map(({ choice, label, bet, Icon }) => (
+              {(
+                [
+                  { choice: "rock", label: "Rock", bet: 1_000, Icon: Circle },
+                  { choice: "paper", label: "Paper", bet: 2_000, Icon: Hand },
+                  {
+                    choice: "scissors",
+                    label: "Scissors",
+                    bet: 3_000,
+                    Icon: Scissors,
+                  },
+                ] as const
+              ).map(({ choice, label, bet, Icon }) => (
                 <button
                   key={choice}
                   type="button"
                   onClick={() => playRps(choice, bet)}
                   disabled={loading || wallet < bet}
-                  className="flex items-center gap-2 rounded-md border border-border bg-card px-4 py-3 text-sm font-medium transition hover:bg-muted disabled:opacity-50"
+                  className="flex items-center gap-2 rounded-md border border-border bg-card px-4 py-3 font-medium text-sm transition hover:bg-muted disabled:opacity-50"
                 >
                   <Icon className="h-5 w-5" />
                   {label} (₱{bet.toLocaleString()})
@@ -236,7 +251,7 @@ function CasinoPage() {
                 type="button"
                 disabled={loading || wallet < 2_000}
                 onClick={() => rpsResult("win", 1_000)}
-                className="flex items-center gap-2 rounded-md border border-border bg-card px-4 py-3 text-sm font-medium transition hover:bg-muted disabled:opacity-50"
+                className="flex items-center gap-2 rounded-md border border-border bg-card px-4 py-3 font-medium text-sm transition hover:bg-muted disabled:opacity-50"
               >
                 <CrownIcon className="h-5 w-5 text-warning" />
                 Win (₱1,000)
@@ -245,7 +260,7 @@ function CasinoPage() {
                 type="button"
                 disabled={loading || wallet < 2_000}
                 onClick={() => rpsResult("lose", 1_000)}
-                className="flex items-center gap-2 rounded-md border border-border bg-card px-4 py-3 text-sm font-medium transition hover:bg-muted disabled:opacity-50"
+                className="flex items-center gap-2 rounded-md border border-border bg-card px-4 py-3 font-medium text-sm transition hover:bg-muted disabled:opacity-50"
               >
                 <FrownIcon className="h-5 w-5 text-destructive" />
                 Lose (₱1,000)
@@ -257,7 +272,7 @@ function CasinoPage() {
 
       {eventLog.length > 0 && (
         <div className="flex h-60 flex-col-reverse overflow-y-auto rounded-lg border border-border bg-card p-4">
-          <pre className="text-xs leading-relaxed text-card-foreground">
+          <pre className="text-card-foreground text-xs leading-relaxed">
             {eventLog.join("\n")}
           </pre>
         </div>

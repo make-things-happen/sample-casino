@@ -1,9 +1,15 @@
+import { NextResponse } from "next/server";
 import { reversalSchema } from "~/lib/validation";
 import { sendReversal } from "~/lib/womo";
-import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
-  const body = await req.json();
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
   const parsed = reversalSchema.safeParse(body);
 
   if (!parsed.success) {

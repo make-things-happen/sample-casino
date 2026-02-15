@@ -27,14 +27,7 @@ export const reversalSchema = z.object({
   txId: z.string().min(1, "txId is required"),
 });
 
-export const conversionSchema = z.discriminatedUnion("conversionType", [
-  registrationSchema.extend({ conversionType: z.literal("registration") }),
-  ftdSchema.extend({ conversionType: z.literal("ftd") }),
-  revenueSchema.extend({ conversionType: z.literal("revenue") }),
-]);
-
 export type RegistrationData = z.infer<typeof registrationSchema>;
 export type FtdData = z.infer<typeof ftdSchema>;
 export type RevenueData = z.infer<typeof revenueSchema>;
 export type ReversalData = z.infer<typeof reversalSchema>;
-export type ConversionData = z.infer<typeof conversionSchema>;

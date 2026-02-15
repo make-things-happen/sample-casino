@@ -1,4 +1,4 @@
-import type { RegistrationData, FtdData, RevenueData } from "./validation";
+import type { FtdData, RegistrationData, RevenueData } from "./validation";
 
 const WOMO_API_URL = process.env.WOMO_API_URL;
 const WOMO_API_KEY = process.env.WOMO_API_KEY;
@@ -10,7 +10,9 @@ function getConfig() {
   return { url: WOMO_API_URL, key: WOMO_API_KEY };
 }
 
-export async function sendRegistration(data: RegistrationData): Promise<Response> {
+export async function sendRegistration(
+  data: RegistrationData,
+): Promise<Response> {
   const { url, key } = getConfig();
   return fetch(`${url}/conversions/registration`, {
     method: "POST",
@@ -51,7 +53,6 @@ export async function sendReversal(txId: string): Promise<Response> {
   return fetch(`${url}/conversions/${txId}/reversal`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
       "x-client-secret": key,
     },
   });

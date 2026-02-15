@@ -6,7 +6,7 @@ This document provides guidelines for AI agents operating within the WOMO monore
 
 ```bash
 bun install                        # Install dependencies
-bun run dev                        # Start all dev servers (web:3000, shortlink:3001, email:3002)
+bun run dev                        # Start all dev servers (web:3000, shortlink:3001, sample-casino:3003)
 bun run build                      # Build all apps (or: turbo build)
 bunx --bun biome check --write     # Lint & format (runs automatically on pre-commit via lefthook)
 bun run typecheck                  # Type check (run from specific app, e.g. apps/web)

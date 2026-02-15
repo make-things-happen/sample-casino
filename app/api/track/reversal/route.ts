@@ -1,19 +1,19 @@
-import { conversionSchema } from "~/lib/validation";
-import { sendConversion } from "~/lib/womo";
+import { reversalSchema } from "~/lib/validation";
+import { sendReversal } from "~/lib/womo";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   const body = await req.json();
-  const parsed = conversionSchema.safeParse(body);
+  const parsed = reversalSchema.safeParse(body);
 
   if (!parsed.success) {
     return NextResponse.json(
-      { error: "Invalid conversion data", details: parsed.error.flatten() },
+      { error: "Invalid reversal data", details: parsed.error.flatten() },
       { status: 400 },
     );
   }
 
-  const res = await sendConversion(parsed.data);
+  const res = await sendReversal(parsed.data.txId);
 
   if (!res.ok) {
     const text = await res.text();

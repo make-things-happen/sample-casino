@@ -1,7 +1,7 @@
 "use client";
 
 import { formatCurrency } from "~/lib/format";
-import { conversionSchema } from "~/lib/validation";
+import { registrationSchema, ftdSchema, revenueSchema } from "~/lib/validation";
 import { Loader2, RotateCw } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useRef, useState } from "react";
@@ -53,8 +53,8 @@ function SpinPage() {
 
   const log = (msg: string) => setEventLog((prev) => [...prev, msg]);
 
-  async function trackConversion(data: Record<string, unknown>): Promise<boolean> {
-    const res = await fetch("/api/track", {
+  async function trackConversion(endpoint: string, data: Record<string, unknown>): Promise<boolean> {
+    const res = await fetch(`/api/track/${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
@@ -68,14 +68,13 @@ function SpinPage() {
       return;
     }
     const playerId = Math.random().toString(36).substring(2, 15);
-    const body = conversionSchema.parse({
-      conversionType: "registration",
+    const body = registrationSchema.parse({
       clickId,
       playerId,
     });
 
     setLoading(true);
-    const ok = await trackConversion(body);
+    const ok = await trackConversion("registration", body);
     setLoading(false);
 
     if (!ok) {
@@ -94,14 +93,13 @@ function SpinPage() {
     const transactionId = Math.random().toString(36).substring(2, 15);
 
     if (wallet === 0) {
-      const body = conversionSchema.parse({
-        conversionType: "ftd",
+      const body = ftdSchema.parse({
         clickId,
         amount,
         transactionId,
         playerId: player.id,
       });
-      const ok = await trackConversion(body);
+      const ok = await trackConversion("ftd", body);
       if (!ok) {
         log(`Failed to record first deposit of ${formatCurrency(amount)}.`);
         setLoading(false);
@@ -147,15 +145,14 @@ function SpinPage() {
       const transactionId = Math.random().toString(36).substring(2, 15);
       // Revenue from casino perspective: positive = casino profit, negative = casino loss
       const casinoRevenue = -netWin;
-      const body = conversionSchema.parse({
-        conversionType: "revenue",
+      const body = revenueSchema.parse({
         clickId,
         transactionId,
         amount: casinoRevenue,
         revenueType: "net_revenue",
         playerId: player.id,
       });
-      const ok = await trackConversion(body);
+      const ok = await trackConversion("revenue", body);
       if (ok) {
         log(`Casino revenue: ${formatCurrency(casinoRevenue)}, tx: ${transactionId}.`);
       } else {

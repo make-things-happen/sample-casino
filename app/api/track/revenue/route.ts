@@ -1,0 +1,34 @@
+import { NextResponse } from "next/server";
+import { revenueSchema } from "~/lib/validation";
+import { sendRevenue } from "~/lib/womo";
+
+export async function POST(req: Request) {
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const parsed = revenueSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid revenue data", details: parsed.error.flatten() },
+      { status: 400 },
+    );
+  }
+
+  const res = await sendRevenue(parsed.data);
+
+  if (!res.ok) {
+    const text = await res.text();
+    return NextResponse.json(
+      { error: "WOMO API error", details: text },
+      { status: res.status },
+    );
+  }
+
+  const data = await res.json();
+  return NextResponse.json(data);
+}

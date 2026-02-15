@@ -1,11 +1,12 @@
+import { Dices, RotateCw } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Dices, RotateCw } from "lucide-react";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Sample Casino — WOMO Integration Demo",
-  description: "A standalone demo app showing how operators integrate with the WOMO platform.",
+  description:
+    "A standalone demo app showing how operators integrate with the WOMO platform.",
 };
 
 const NAV_ITEMS = [
@@ -13,12 +14,16 @@ const NAV_ITEMS = [
   { href: "/spin", label: "Spin the Wheel", icon: RotateCw },
 ] as const;
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
       <body className="flex min-h-screen">
-        <aside className="flex w-56 shrink-0 flex-col border-r border-border bg-card p-4">
-          <Link href="/" className="mb-8 text-lg font-bold text-primary">
+        <aside className="flex w-56 shrink-0 flex-col border-border border-r bg-card p-4">
+          <Link href="/" className="mb-8 font-bold text-lg text-primary">
             Sample Casino
           </Link>
           <nav className="flex flex-col gap-1">
@@ -26,7 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-card-foreground transition hover:bg-muted"
+                className="flex items-center gap-2 rounded-md px-3 py-2 font-medium text-card-foreground text-sm transition hover:bg-muted"
               >
                 <item.icon className="h-4 w-4" />
                 {item.label}

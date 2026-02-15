@@ -1,10 +1,10 @@
 "use client";
 
-import { formatCurrency } from "~/lib/format";
-import { conversionSchema } from "~/lib/validation";
 import { Loader2, RotateCw } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useRef, useState } from "react";
+import { formatCurrency } from "~/lib/format";
+import { ftdSchema, registrationSchema, revenueSchema } from "~/lib/validation";
 
 const SEGMENTS = [
   { label: "₱0", value: 0, color: "#64748b" },
@@ -53,8 +53,12 @@ function SpinPage() {
 
   const log = (msg: string) => setEventLog((prev) => [...prev, msg]);
 
-  async function trackConversion(data: Record<string, unknown>): Promise<boolean> {
-    const res = await fetch("/api/track", {
+  type TrackEndpoint = "registration" | "ftd" | "revenue" | "reversal";
+  async function trackConversion(
+    endpoint: TrackEndpoint,
+    data: Record<string, unknown>,
+  ): Promise<boolean> {
+    const res = await fetch(`/api/track/${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
@@ -68,14 +72,13 @@ function SpinPage() {
       return;
     }
     const playerId = Math.random().toString(36).substring(2, 15);
-    const body = conversionSchema.parse({
-      conversionType: "registration",
+    const body = registrationSchema.parse({
       clickId,
       playerId,
     });
 
     setLoading(true);
-    const ok = await trackConversion(body);
+    const ok = await trackConversion("registration", body);
     setLoading(false);
 
     if (!ok) {
@@ -94,14 +97,13 @@ function SpinPage() {
     const transactionId = Math.random().toString(36).substring(2, 15);
 
     if (wallet === 0) {
-      const body = conversionSchema.parse({
-        conversionType: "ftd",
+      const body = ftdSchema.parse({
         clickId,
         amount,
         transactionId,
         playerId: player.id,
       });
-      const ok = await trackConversion(body);
+      const ok = await trackConversion("ftd", body);
       if (!ok) {
         log(`Failed to record first deposit of ${formatCurrency(amount)}.`);
         setLoading(false);
@@ -124,6 +126,7 @@ function SpinPage() {
 
     // Pick a random segment
     const winIndex = Math.floor(Math.random() * SEGMENTS.length);
+    // biome-ignore lint/style/noNonNullAssertion: index is always within bounds
     const prize = SEGMENTS[winIndex]!;
 
     // Calculate rotation: multiple full spins + land on the winning segment
@@ -147,19 +150,20 @@ function SpinPage() {
       const transactionId = Math.random().toString(36).substring(2, 15);
       // Revenue from casino perspective: positive = casino profit, negative = casino loss
       const casinoRevenue = -netWin;
-      const body = conversionSchema.parse({
-        conversionType: "revenue",
+      const body = revenueSchema.parse({
         clickId,
         transactionId,
         amount: casinoRevenue,
         revenueType: "net_revenue",
         playerId: player.id,
       });
-      const ok = await trackConversion(body);
+      const ok = await trackConversion("revenue", body);
       if (ok) {
-        log(`Casino revenue: ${formatCurrency(casinoRevenue)}, tx: ${transactionId}.`);
+        log(
+          `Casino revenue: ${formatCurrency(casinoRevenue)}, tx: ${transactionId}.`,
+        );
       } else {
-        log(`Failed to record revenue for spin.`);
+        log("Failed to record revenue for spin.");
       }
     }
 
@@ -195,7 +199,13 @@ function SpinPage() {
 
       paths.push(
         <g key={i}>
-          <path d={d} fill={SEGMENTS[i]!.color} stroke="#1e1b4b" strokeWidth="1.5" />
+          <path
+            d={d}
+            // biome-ignore lint/style/noNonNullAssertion: index is always within bounds
+            fill={SEGMENTS[i]!.color}
+            stroke="#1e1b4b"
+            strokeWidth="1.5"
+          />
           <text
             x={lx}
             y={ly}
@@ -206,6 +216,7 @@ function SpinPage() {
             dominantBaseline="central"
             transform={`rotate(${labelRotation}, ${lx}, ${ly})`}
           >
+            {/* biome-ignore lint/style/noNonNullAssertion: index is always within bounds */}
             {SEGMENTS[i]!.label}
           </text>
         </g>,
@@ -218,8 +229,8 @@ function SpinPage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
       <div>
-        <h1 className="text-2xl font-bold">Spin the Wheel</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="font-bold text-2xl">Spin the Wheel</h1>
+        <p className="mt-1 text-muted-foreground text-sm">
           Click ID: {clickId || "(not found — use a tracking link)"}
         </p>
       </div>
@@ -228,7 +239,7 @@ function SpinPage() {
         <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6">
           <h2 className="font-semibold">Register to Play</h2>
           <label className="flex flex-col gap-1">
-            <span className="text-sm text-muted-foreground">Player Name</span>
+            <span className="text-muted-foreground text-sm">Player Name</span>
             <input
               type="text"
               value={playerNameInput}
@@ -241,7 +252,7 @@ function SpinPage() {
             type="button"
             onClick={() => register(playerNameInput)}
             disabled={loading || !playerNameInput.trim()}
-            className="self-start rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+            className="self-start rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground text-sm transition hover:opacity-90 disabled:opacity-50"
           >
             {loading ? "Registering..." : "Register"}
           </button>
@@ -257,7 +268,7 @@ function SpinPage() {
               type="button"
               onClick={() => onDeposit(10_000)}
               disabled={loading || spinning}
-              className="rounded-md bg-success px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+              className="rounded-md bg-success px-4 py-2 font-medium text-sm text-white transition hover:opacity-90 disabled:opacity-50"
             >
               Deposit ₱10,000
             </button>
@@ -268,7 +279,7 @@ function SpinPage() {
             <div className="relative">
               {/* Pointer */}
               <div className="absolute top-0 left-1/2 z-10 -translate-x-1/2 -translate-y-1">
-                <div className="h-0 w-0 border-x-[10px] border-t-[20px] border-x-transparent border-t-warning" />
+                <div className="h-0 w-0 border-x-[10px] border-x-transparent border-t-[20px] border-t-warning" />
               </div>
               <svg
                 ref={wheelRef}
@@ -290,7 +301,7 @@ function SpinPage() {
             {/* Controls */}
             <div className="flex flex-col gap-4">
               <div>
-                <h3 className="mb-2 text-sm font-semibold">Bet Amount</h3>
+                <h3 className="mb-2 font-semibold text-sm">Bet Amount</h3>
                 <div className="flex flex-wrap gap-2">
                   {BET_OPTIONS.map((amount) => (
                     <button
@@ -298,7 +309,7 @@ function SpinPage() {
                       type="button"
                       onClick={() => setBetAmount(amount)}
                       disabled={spinning}
-                      className={`rounded-md border px-3 py-2 text-sm font-medium transition ${
+                      className={`rounded-md border px-3 py-2 font-medium text-sm transition ${
                         betAmount === amount
                           ? "border-primary bg-primary text-primary-foreground"
                           : "border-border bg-card hover:bg-muted"
@@ -314,10 +325,14 @@ function SpinPage() {
                 type="button"
                 onClick={spin}
                 disabled={spinning || wallet < betAmount}
-                className="flex items-center justify-center gap-2 rounded-md bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+                className="flex items-center justify-center gap-2 rounded-md bg-primary px-6 py-3 font-medium text-primary-foreground text-sm transition hover:opacity-90 disabled:opacity-50"
               >
-                <RotateCw className={`h-4 w-4 ${spinning ? "animate-spin" : ""}`} />
-                {spinning ? "Spinning..." : `Spin (₱${betAmount.toLocaleString()})`}
+                <RotateCw
+                  className={`h-4 w-4 ${spinning ? "animate-spin" : ""}`}
+                />
+                {spinning
+                  ? "Spinning..."
+                  : `Spin (₱${betAmount.toLocaleString()})`}
               </button>
             </div>
           </div>
@@ -326,7 +341,7 @@ function SpinPage() {
 
       {eventLog.length > 0 && (
         <div className="flex h-60 flex-col-reverse overflow-y-auto rounded-lg border border-border bg-card p-4">
-          <pre className="text-xs leading-relaxed text-card-foreground">
+          <pre className="text-card-foreground text-xs leading-relaxed">
             {eventLog.join("\n")}
           </pre>
         </div>

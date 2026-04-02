@@ -24,9 +24,9 @@ export async function sendRegistration(
   });
 }
 
-export async function sendFtd(data: FtdData): Promise<Response> {
+export async function sendDeposit(data: FtdData): Promise<Response> {
   const { url, key } = getConfig();
-  return fetch(`${url}/conversions/ftd`, {
+  return fetch(`${url}/conversions/deposit`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

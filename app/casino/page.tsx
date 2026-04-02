@@ -1,139 +1,22 @@
 "use client";
 
-import {
-  Circle,
-  CrownIcon,
-  FrownIcon,
-  Hand,
-  Loader2,
-  Scissors,
-} from "lucide-react";
-import { useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
-import { formatCurrency } from "~/lib/format";
-import { ftdSchema, registrationSchema, revenueSchema } from "~/lib/validation";
+import { Circle, CrownIcon, FrownIcon, Hand, Scissors } from "lucide-react";
+import { EventLog } from "~/components/event-log";
+import { RegisterForm } from "~/components/register-form";
+import { WalletBar } from "~/components/wallet-bar";
+import { useCasino } from "~/lib/use-casino";
 
-export default function CasinoPageWrapper() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex h-full items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-      }
-    >
-      <CasinoPage />
-    </Suspense>
-  );
-}
-
-function CasinoPage() {
-  const searchParams = useSearchParams();
-  const clickId = searchParams.get("click_id") || "";
-  const [player, setPlayer] = useState<{
-    id: string;
-    name: string;
-    clickId: string;
-  } | null>(null);
-  const [playerNameInput, setPlayerNameInput] = useState("");
-  const [eventLog, setEventLog] = useState<string[]>([]);
-  const [wallet, setWallet] = useState(0);
-  const [loading, setLoading] = useState(false);
-
-  const log = (msg: string) => setEventLog((prev) => [...prev, msg]);
-
-  type TrackEndpoint = "registration" | "ftd" | "revenue" | "reversal";
-  async function trackConversion(
-    endpoint: TrackEndpoint,
-    data: Record<string, unknown>,
-  ): Promise<boolean> {
-    const res = await fetch(`/api/track/${endpoint}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    return res.ok;
-  }
-
-  const register = async (name: string) => {
-    if (!clickId) {
-      log("No click ID found. Please use a tracking link.");
-      return;
-    }
-    const playerId = Math.random().toString(36).substring(2, 15);
-    const body = registrationSchema.parse({
-      clickId,
-      playerId,
-    });
-
-    setLoading(true);
-    const ok = await trackConversion("registration", body);
-    setLoading(false);
-
-    if (!ok) {
-      log(
-        `Failed to register player ${name}. Get a new click ID and try again.`,
-      );
-      return;
-    }
-
-    setPlayer({ id: playerId, name, clickId });
-    log(`Player ${name} registered. Player ID: ${playerId}`);
-  };
-
-  const onDeposit = async (amount: number) => {
-    if (amount <= 0 || !player || !clickId) return;
-
-    setLoading(true);
-    const transactionId = Math.random().toString(36).substring(2, 15);
-
-    if (wallet === 0) {
-      const body = ftdSchema.parse({
-        clickId,
-        amount,
-        transactionId,
-        playerId: player.id,
-      });
-      const ok = await trackConversion("ftd", body);
-      if (!ok) {
-        log(`Failed to record first deposit of ${formatCurrency(amount)}.`);
-        setLoading(false);
-        return;
-      }
-    }
-
-    setWallet((prev) => prev + amount);
-    log(
-      `Player deposited ${formatCurrency(amount)}, tx: ${transactionId}.${wallet === 0 ? " (First Deposit)" : ""}`,
-    );
-    setLoading(false);
-  };
-
-  const rpsResult = async (result: "win" | "lose", amount: number) => {
-    if (!player) return;
-
-    setLoading(true);
-    const transactionId = Math.random().toString(36).substring(2, 15);
-    setWallet((prev) => prev + (result === "win" ? amount : -amount));
-
-    const body = revenueSchema.parse({
-      clickId,
-      transactionId,
-      amount: result === "win" ? -amount : amount,
-      revenueType: "net_revenue",
-      playerId: player.id,
-    });
-    const ok = await trackConversion("revenue", body);
-    setLoading(false);
-
-    if (!ok) {
-      log(`Failed to record ${result} of ${formatCurrency(amount)}.`);
-      return;
-    }
-    log(
-      `Recorded player ${result} of ${formatCurrency(amount)}, tx: ${transactionId}. Casino Revenue: ${result === "win" ? formatCurrency(-amount) : formatCurrency(amount)}.`,
-    );
-  };
+export default function CasinoPage() {
+  const {
+    player,
+    eventLog,
+    wallet,
+    loading,
+    log,
+    register,
+    onDeposit,
+    recordRevenue,
+  } = useCasino();
 
   const playRps = async (
     choice: "rock" | "paper" | "scissors",
@@ -163,7 +46,7 @@ function CasinoPage() {
     );
 
     if (result !== "draw") {
-      await rpsResult(result, amount);
+      await recordRevenue(result, amount);
     }
   };
 
@@ -171,49 +54,22 @@ function CasinoPage() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
       <div>
         <h1 className="font-bold text-2xl">Rock Paper Scissors</h1>
-        <p className="mt-1 text-muted-foreground text-sm">
-          Click ID: {clickId || "(not found — use a tracking link)"}
-        </p>
+        {player?.clickId && (
+          <span className="mt-1 inline-block rounded-full bg-success/20 px-2 py-0.5 font-medium text-success text-xs">
+            Tracked
+          </span>
+        )}
       </div>
 
       {!player ? (
-        <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6">
-          <h2 className="font-semibold">Register to Play</h2>
-          <label className="flex flex-col gap-1">
-            <span className="text-muted-foreground text-sm">Player Name</span>
-            <input
-              type="text"
-              value={playerNameInput}
-              onChange={(e) => setPlayerNameInput(e.target.value)}
-              className="rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-              placeholder="Enter your name"
-            />
-          </label>
-          <button
-            type="button"
-            onClick={() => register(playerNameInput)}
-            disabled={loading || !playerNameInput.trim()}
-            className="self-start rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground text-sm transition hover:opacity-90 disabled:opacity-50"
-          >
-            {loading ? "Registering..." : "Register"}
-          </button>
-        </div>
+        <RegisterForm loading={loading} onRegister={register} />
       ) : (
         <div className="flex flex-col gap-6">
-          <div className="flex items-center gap-4 rounded-lg border border-border bg-card p-4">
-            <div className="text-sm">
-              <span className="text-muted-foreground">Wallet:</span>{" "}
-              <span className="font-bold">{formatCurrency(wallet)}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => onDeposit(10_000)}
-              disabled={loading}
-              className="rounded-md bg-success px-4 py-2 font-medium text-sm text-white transition hover:opacity-90 disabled:opacity-50"
-            >
-              Deposit ₱10,000
-            </button>
-          </div>
+          <WalletBar
+            wallet={wallet}
+            loading={loading}
+            onDeposit={() => onDeposit(10_000)}
+          />
 
           <div>
             <h2 className="mb-3 font-semibold">Play a Round</h2>
@@ -250,7 +106,7 @@ function CasinoPage() {
               <button
                 type="button"
                 disabled={loading || wallet < 2_000}
-                onClick={() => rpsResult("win", 1_000)}
+                onClick={() => recordRevenue("win", 1_000)}
                 className="flex items-center gap-2 rounded-md border border-border bg-card px-4 py-3 font-medium text-sm transition hover:bg-muted disabled:opacity-50"
               >
                 <CrownIcon className="h-5 w-5 text-warning" />
@@ -259,7 +115,7 @@ function CasinoPage() {
               <button
                 type="button"
                 disabled={loading || wallet < 2_000}
-                onClick={() => rpsResult("lose", 1_000)}
+                onClick={() => recordRevenue("lose", 1_000)}
                 className="flex items-center gap-2 rounded-md border border-border bg-card px-4 py-3 font-medium text-sm transition hover:bg-muted disabled:opacity-50"
               >
                 <FrownIcon className="h-5 w-5 text-destructive" />
@@ -270,13 +126,7 @@ function CasinoPage() {
         </div>
       )}
 
-      {eventLog.length > 0 && (
-        <div className="flex h-60 flex-col-reverse overflow-y-auto rounded-lg border border-border bg-card p-4">
-          <pre className="text-card-foreground text-xs leading-relaxed">
-            {eventLog.join("\n")}
-          </pre>
-        </div>
-      )}
+      <EventLog entries={eventLog} />
     </div>
   );
 }

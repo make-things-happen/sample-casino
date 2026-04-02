@@ -1,10 +1,13 @@
 "use client";
 
-import { Loader2, RotateCw } from "lucide-react";
-import { useSearchParams } from "next/navigation";
-import { Suspense, useRef, useState } from "react";
+import { RotateCw } from "lucide-react";
+import { useRef, useState } from "react";
+import { EventLog } from "~/components/event-log";
+import { RegisterForm } from "~/components/register-form";
+import { WalletBar } from "~/components/wallet-bar";
 import { formatCurrency } from "~/lib/format";
-import { ftdSchema, registrationSchema, revenueSchema } from "~/lib/validation";
+import { useCasino } from "~/lib/use-casino";
+import { revenueSchema } from "~/lib/validation";
 
 const SEGMENTS = [
   { label: "₱0", value: 0, color: "#64748b" },
@@ -18,105 +21,25 @@ const SEGMENTS = [
 ] as const;
 
 const SEGMENT_ANGLE = 360 / SEGMENTS.length;
-
 const BET_OPTIONS = [500, 1_000, 2_000, 5_000] as const;
 
-export default function SpinPageWrapper() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex h-full items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-      }
-    >
-      <SpinPage />
-    </Suspense>
-  );
-}
+export default function SpinPage() {
+  const {
+    player,
+    eventLog,
+    wallet,
+    setWallet,
+    loading,
+    log,
+    register,
+    onDeposit,
+    trackConversion,
+  } = useCasino();
 
-function SpinPage() {
-  const searchParams = useSearchParams();
-  const clickId = searchParams.get("click_id") || "";
-  const [player, setPlayer] = useState<{
-    id: string;
-    name: string;
-  } | null>(null);
-  const [playerNameInput, setPlayerNameInput] = useState("");
-  const [eventLog, setEventLog] = useState<string[]>([]);
-  const [wallet, setWallet] = useState(0);
-  const [loading, setLoading] = useState(false);
   const [spinning, setSpinning] = useState(false);
   const [betAmount, setBetAmount] = useState<number>(BET_OPTIONS[0]);
   const [rotation, setRotation] = useState(0);
   const wheelRef = useRef<SVGSVGElement>(null);
-
-  const log = (msg: string) => setEventLog((prev) => [...prev, msg]);
-
-  type TrackEndpoint = "registration" | "ftd" | "revenue" | "reversal";
-  async function trackConversion(
-    endpoint: TrackEndpoint,
-    data: Record<string, unknown>,
-  ): Promise<boolean> {
-    const res = await fetch(`/api/track/${endpoint}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    return res.ok;
-  }
-
-  const register = async (name: string) => {
-    if (!clickId) {
-      log("No click ID found. Please use a tracking link.");
-      return;
-    }
-    const playerId = Math.random().toString(36).substring(2, 15);
-    const body = registrationSchema.parse({
-      clickId,
-      playerId,
-    });
-
-    setLoading(true);
-    const ok = await trackConversion("registration", body);
-    setLoading(false);
-
-    if (!ok) {
-      log(`Failed to register player ${name}.`);
-      return;
-    }
-
-    setPlayer({ id: playerId, name });
-    log(`Player ${name} registered. Player ID: ${playerId}`);
-  };
-
-  const onDeposit = async (amount: number) => {
-    if (amount <= 0 || !player || !clickId) return;
-
-    setLoading(true);
-    const transactionId = Math.random().toString(36).substring(2, 15);
-
-    if (wallet === 0) {
-      const body = ftdSchema.parse({
-        clickId,
-        amount,
-        transactionId,
-        playerId: player.id,
-      });
-      const ok = await trackConversion("ftd", body);
-      if (!ok) {
-        log(`Failed to record first deposit of ${formatCurrency(amount)}.`);
-        setLoading(false);
-        return;
-      }
-    }
-
-    setWallet((prev) => prev + amount);
-    log(
-      `Player deposited ${formatCurrency(amount)}, tx: ${transactionId}.${wallet === 0 ? " (First Deposit)" : ""}`,
-    );
-    setLoading(false);
-  };
 
   const spin = async () => {
     if (!player || spinning || wallet < betAmount) return;
@@ -124,20 +47,15 @@ function SpinPage() {
     setSpinning(true);
     setWallet((prev) => prev - betAmount);
 
-    // Pick a random segment
     const winIndex = Math.floor(Math.random() * SEGMENTS.length);
     // biome-ignore lint/style/noNonNullAssertion: index is always within bounds
     const prize = SEGMENTS[winIndex]!;
 
-    // Calculate rotation: multiple full spins + land on the winning segment
-    // The pointer is at the top (12 o'clock). Segments are drawn clockwise from 12 o'clock.
-    // To land on segment N, we need to rotate so segment N is at the top.
     const segmentCenter = winIndex * SEGMENT_ANGLE + SEGMENT_ANGLE / 2;
     const fullSpins = 5 + Math.floor(Math.random() * 3);
     const newRotation = rotation + fullSpins * 360 + (360 - segmentCenter);
     setRotation(newRotation);
 
-    // Wait for the animation to finish
     await new Promise((resolve) => setTimeout(resolve, 4000));
 
     const netWin = prize.value - betAmount;
@@ -146,12 +64,11 @@ function SpinPage() {
       `Spun the wheel! Landed on ${prize.label}. Bet: ${formatCurrency(betAmount)}, Prize: ${formatCurrency(prize.value)}.`,
     );
 
-    if (netWin !== 0) {
+    if (netWin !== 0 && player.clickId) {
       const transactionId = Math.random().toString(36).substring(2, 15);
-      // Revenue from casino perspective: positive = casino profit, negative = casino loss
       const casinoRevenue = -netWin;
       const body = revenueSchema.parse({
-        clickId,
+        clickId: player.clickId,
         transactionId,
         amount: casinoRevenue,
         revenueType: "net_revenue",
@@ -170,7 +87,6 @@ function SpinPage() {
     setSpinning(false);
   };
 
-  // Build SVG wheel segments
   function buildWheelPaths() {
     const cx = 150;
     const cy = 150;
@@ -190,7 +106,6 @@ function SpinPage() {
 
       const d = `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${largeArc},1 ${x2},${y2} Z`;
 
-      // Label position
       const midAngle = ((i + 0.5) * SEGMENT_ANGLE - 90) * (Math.PI / 180);
       const labelR = r * 0.65;
       const lx = cx + labelR * Math.cos(midAngle);
@@ -230,54 +145,26 @@ function SpinPage() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
       <div>
         <h1 className="font-bold text-2xl">Spin the Wheel</h1>
-        <p className="mt-1 text-muted-foreground text-sm">
-          Click ID: {clickId || "(not found — use a tracking link)"}
-        </p>
+        {player?.clickId && (
+          <span className="mt-1 inline-block rounded-full bg-success/20 px-2 py-0.5 font-medium text-success text-xs">
+            Tracked
+          </span>
+        )}
       </div>
 
       {!player ? (
-        <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6">
-          <h2 className="font-semibold">Register to Play</h2>
-          <label className="flex flex-col gap-1">
-            <span className="text-muted-foreground text-sm">Player Name</span>
-            <input
-              type="text"
-              value={playerNameInput}
-              onChange={(e) => setPlayerNameInput(e.target.value)}
-              className="rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-              placeholder="Enter your name"
-            />
-          </label>
-          <button
-            type="button"
-            onClick={() => register(playerNameInput)}
-            disabled={loading || !playerNameInput.trim()}
-            className="self-start rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground text-sm transition hover:opacity-90 disabled:opacity-50"
-          >
-            {loading ? "Registering..." : "Register"}
-          </button>
-        </div>
+        <RegisterForm loading={loading} onRegister={register} />
       ) : (
         <div className="flex flex-col gap-6">
-          <div className="flex items-center gap-4 rounded-lg border border-border bg-card p-4">
-            <div className="text-sm">
-              <span className="text-muted-foreground">Wallet:</span>{" "}
-              <span className="font-bold">{formatCurrency(wallet)}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => onDeposit(10_000)}
-              disabled={loading || spinning}
-              className="rounded-md bg-success px-4 py-2 font-medium text-sm text-white transition hover:opacity-90 disabled:opacity-50"
-            >
-              Deposit ₱10,000
-            </button>
-          </div>
+          <WalletBar
+            wallet={wallet}
+            loading={loading || spinning}
+            onDeposit={() => onDeposit(10_000)}
+          />
 
           <div className="flex flex-col items-center gap-6 lg:flex-row lg:items-start">
             {/* Wheel */}
             <div className="relative">
-              {/* Pointer */}
               <div className="absolute top-0 left-1/2 z-10 -translate-x-1/2 -translate-y-1">
                 <div className="h-0 w-0 border-x-[10px] border-x-transparent border-t-[20px] border-t-warning" />
               </div>
@@ -339,13 +226,7 @@ function SpinPage() {
         </div>
       )}
 
-      {eventLog.length > 0 && (
-        <div className="flex h-60 flex-col-reverse overflow-y-auto rounded-lg border border-border bg-card p-4">
-          <pre className="text-card-foreground text-xs leading-relaxed">
-            {eventLog.join("\n")}
-          </pre>
-        </div>
-      )}
+      <EventLog entries={eventLog} />
     </div>
   );
 }

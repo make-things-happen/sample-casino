@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ftdSchema } from "~/lib/validation";
-import { sendFtd } from "~/lib/womo";
+import { sendDeposit } from "~/lib/womo";
 
 export async function POST(req: Request) {
   let body: unknown;
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const res = await sendFtd(parsed.data);
+  const res = await sendDeposit(parsed.data);
 
   if (!res.ok) {
     const text = await res.text();
